@@ -1,0 +1,11 @@
+**/__pycache__
+env/
+
+# stuff you don't really want around
+checkpoints/
+pretrained/
+data/
+logs/
+
+# IDE
+.vscode/
