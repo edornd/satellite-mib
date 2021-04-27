@@ -1,7 +1,7 @@
 import os
 import glob
 from pathlib import Path
-from typing import Any, Callable, List, Tuple
+from typing import Callable, List, Tuple
 
 import numpy as np
 import tifffile as tif

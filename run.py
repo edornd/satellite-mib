@@ -102,7 +102,7 @@ def get_dataset(opts):
 
     image_set = 'train' if opts.val_on_trainset else 'val'
     test_dst = dataset(root=opts.data_root, train=opts.val_on_trainset, transform=val_transform,
-                       labels=list(labels_cum),
+                       labels=list(labels_cum), labels_old=list(labels_old),
                        idxs_path=path_base + f"/test_on_{image_set}-{opts.step}.npy")
 
     #? no test set used, only validation?

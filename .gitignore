@@ -2,6 +2,7 @@
 env/
 
 # stuff you don't really want around
+apex/
 checkpoints/
 pretrained/
 data/
