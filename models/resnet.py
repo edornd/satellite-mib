@@ -31,6 +31,7 @@ class ResNet(nn.Module):
     def __init__(self,
                  structure,
                  bottleneck,
+                 input_channels=3,
                  norm_act=nn.BatchNorm2d,
                  classes=0,
                  output_stride=16,
@@ -56,7 +57,7 @@ class ResNet(nn.Module):
 
         # Initial layers
         layers = [
-            ("conv1", nn.Conv2d(3, 64, 7, stride=2, padding=3, bias=False)),
+            ("conv1", nn.Conv2d(input_channels, 64, 7, stride=2, padding=3, bias=False)),
             ("bn1", norm_act(64))
         ]
         if try_index(dilation, 0) == 1:

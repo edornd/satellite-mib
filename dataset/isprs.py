@@ -10,15 +10,15 @@ from torch import distributed
 from torch.utils.data import Dataset as DatasetBase
 import torchvision as tv
 
-from .utils import filter_images, Subset
+from .utils import ISPRSSubset, filter_images
 
 classes = {
-    0: "clutter_background",  # it is actually #5 in the original set
+    0: "surface",
     1: "building",
     2: "low_vegetation",
     3: "tree",
     4: "car",
-    5: "impervious_surfaces",  # it is actually #0 in the original set
+    5: "clutter",
 }
 
 
@@ -75,18 +75,17 @@ class ISPRSDataset(DatasetBase):
         """
         image = tif.imread(self.image_files[index]).astype(np.float32)
         mask = tif.imread(self.label_files[index]).astype(np.uint8)
-        # exchange first and last classes, to keep background first
-        impervious = mask == 0
-        background = mask == 5
-        mask[impervious] = 5
-        mask[background] = 0
+        mask[mask == 5] = 0
+        image = image[:,:,:3] # please update if more channels are required
         # add Digital surface map as extra channel to the image
         if self.include_dsm:
             dsm = tif.imread(self.dsm_files[index]).astype(np.float32)
             image = np.dstack((image, dsm))
         # preprocess if required
         if self.transform is not None:
-            image, mask = self.transform(image, mask)
+            pair = self.transform(image=image, mask=mask)
+            image = pair.get("image")
+            mask = pair.get("mask")
         return image, mask
 
     def __len__(self) -> int:
@@ -95,24 +94,22 @@ class ISPRSDataset(DatasetBase):
 
 class PotsdamDataset(ISPRSDataset):
 
-    def __init__(self, path: Path, city: str, subset: str, channels: str, include_dsm: bool,
-                 transform: Callable) -> None:
+    def __init__(self, path: Path, subset: str, include_dsm: bool = False, transform: Callable = None) -> None:
         super().__init__(path,
                          city="potsdam",
                          subset=subset,
-                         channels=channels,
+                         channels="rgbir",
                          include_dsm=include_dsm,
                          transform=transform)
 
 
 class VaihingenDataset(ISPRSDataset):
 
-    def __init__(self, path: Path, city: str, subset: str, channels: str, include_dsm: bool,
-                 transform: Callable) -> None:
+    def __init__(self, path: Path, subset: str, include_dsm: bool = False, transform: Callable = None) -> None:
         super().__init__(path,
                          city="vaihingen",
                          subset=subset,
-                         channels=channels,
+                         channels="rgb",
                          include_dsm=include_dsm,
                          transform=transform)
 
@@ -133,7 +130,10 @@ class ISPRSDatasetIncremental(DatasetBase):
                  overlap: bool = True):
         #! probably valid is more appropriate?
         subset = "train" if train else "test"
-        full_set = ISPRSDataset(path=root, city=city, subset=subset, channels="rgb", transform=None)
+        if city == "potsdam":
+            full_set = PotsdamDataset(path=root, subset=subset, transform=None)
+        else:
+            full_set = VaihingenDataset(path=root, subset=subset, transform=None)
         self.labels = []
         self.labels_old = []
         # if we have labels, then we expect an ICL setup
@@ -180,7 +180,7 @@ class ISPRSDatasetIncremental(DatasetBase):
                 target_transform = reorder_transform
 
             # make the subset of the dataset
-            self.dataset = Subset(full_set, idxs, transform, target_transform)
+            self.dataset = ISPRSSubset(full_set, idxs, transform, target_transform)
         else:
             self.dataset = full_set
 

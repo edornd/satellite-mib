@@ -1,3 +1,4 @@
+from argparse import Namespace
 import utils
 import argparser
 import os
@@ -37,32 +38,62 @@ def save_ckpt(path, model, trainer, optimizer, scheduler, epoch, best_score):
     torch.save(state, path)
 
 
+def get_augmentations(opts: Namespace):
+    if opts.dataset in ("vaihingen", "potsdam"):
+        # internal not to import for nothing
+        import albumentations as alb
+        from albumentations.pytorch.transforms import ToTensorV2
+
+        train_transform = alb.Compose([
+            alb.Flip(),
+            alb.ShiftScaleRotate(
+                shift_limit=0.2,
+                scale_limit=(-0.2, 0.5),
+                rotate_limit=90,
+                border_mode=4,
+                interpolation=1
+            ),
+            alb.Normalize(mean=[0.485, 0.456, 0.406],
+                            std=[0.229, 0.224, 0.225],
+                            max_pixel_value=1.0), # already in range 0-1
+            ToTensorV2()
+        ])
+        val_transform = alb.Compose([
+            alb.Normalize(mean=[0.485, 0.456, 0.406],
+                            std=[0.229, 0.224, 0.225],
+                            max_pixel_value=1.0),
+            ToTensorV2()
+        ])
+    else:
+        train_transform = transform.Compose([
+            transform.RandomResizedCrop(opts.crop_size, (0.5, 2.0)),
+            transform.RandomHorizontalFlip(),
+            transform.ToTensor(),
+            transform.Normalize(mean=[0.485, 0.456, 0.406],
+                            std=[0.229, 0.224, 0.225]),
+        ])
+
+        if opts.crop_val:
+            val_transform = transform.Compose([
+                transform.Resize(size=opts.crop_size),
+                transform.CenterCrop(size=opts.crop_size),
+                transform.ToTensor(),
+                transform.Normalize(mean=[0.485, 0.456, 0.406],
+                                std=[0.229, 0.224, 0.225]),
+            ])
+        else:
+            # no crop, batch size = 1
+            val_transform = transform.Compose([
+                transform.ToTensor(),
+                transform.Normalize(mean=[0.485, 0.456, 0.406],
+                                std=[0.229, 0.224, 0.225]),
+            ])
+    return train_transform, val_transform
+
 def get_dataset(opts):
     """ Dataset And Augmentation
     """
-    train_transform = transform.Compose([
-        transform.RandomResizedCrop(opts.crop_size, (0.5, 2.0)),
-        transform.RandomHorizontalFlip(),
-        transform.ToTensor(),
-        transform.Normalize(mean=[0.485, 0.456, 0.406],
-                            std=[0.229, 0.224, 0.225]),
-    ])
-
-    if opts.crop_val:
-        val_transform = transform.Compose([
-            transform.Resize(size=opts.crop_size),
-            transform.CenterCrop(size=opts.crop_size),
-            transform.ToTensor(),
-            transform.Normalize(mean=[0.485, 0.456, 0.406],
-                                std=[0.229, 0.224, 0.225]),
-        ])
-    else:
-        # no crop, batch size = 1
-        val_transform = transform.Compose([
-            transform.ToTensor(),
-            transform.Normalize(mean=[0.485, 0.456, 0.406],
-                                std=[0.229, 0.224, 0.225]),
-        ])
+    train_transform, val_transform = get_augmentations(opts)
 
     labels, labels_old, path_base = tasks.get_task_labels(opts.dataset, opts.task, opts.step)
     labels_cum = labels_old + labels
@@ -102,8 +133,9 @@ def get_dataset(opts):
 
     image_set = 'train' if opts.val_on_trainset else 'val'
     test_dst = dataset(root=opts.data_root, train=opts.val_on_trainset, transform=val_transform,
-                       labels=list(labels_cum), labels_old=list(labels_old),
-                       idxs_path=path_base + f"/test_on_{image_set}-{opts.step}.npy")
+                       labels=list(labels_cum), labels_old=None,
+                       idxs_path=path_base + f"/test_on_{image_set}-{opts.step}.npy",
+                       masking=True, overlap=True)
 
     #? no test set used, only validation?
     return train_dst, val_dst, test_dst, len(labels_cum)
