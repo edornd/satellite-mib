@@ -1,6 +1,7 @@
 import torch
 import numpy as np
 from tqdm import tqdm
+from typing import List
 
 
 def group_images(dataset, labels):
@@ -16,6 +17,32 @@ def group_images(dataset, labels):
                     idxs[x].append(i)
     return idxs
 
+def filter_with_overlap(current_labels: List[int], step_labels: List[int], *args, **kwargs) -> bool:
+    """Returns whether the current image must be maintained or discarded for the given step,
+    based on the labels on the current image and the labels required at the step.
+
+    Args:
+        current_labels (List[int]): indices of the labels present in the current image
+        step_labels (List[int]): indices of the labels needed at the current step
+
+    Returns:
+        bool: true if any of the current labels are present, false otherwise
+    """
+    return any(x in step_labels for x in current_labels)
+
+def filter_without_overlap(current_labels: List[int], step_labels: List[int], previous_labels: List[int]) -> bool:
+    """Filters out any image that contains data with no labels belonging to the current step, including
+    those images that contain future labels (potentially dangerous if an image contains more or less every label).add()
+
+    Args:
+        current_labels (List[int]): indices of unique labels for the current image
+        step_labels (List[int]): indices of labels for the step T
+        previous_labels (List[int]): indices of labels from steps 1 .. T - 1 + labels from step T + [0, 255]
+
+    Returns:
+        bool: true whether the image must be kept, false otherwise
+    """
+    return any(x in step_labels for x in current_labels) and all(x in previous_labels for x in current_labels)
 
 def filter_images(dataset, labels, labels_old=None, overlap=True):
     # Filter images without any label in LABELS (using labels not reordered)
@@ -29,14 +56,11 @@ def filter_images(dataset, labels, labels_old=None, overlap=True):
         labels_old = []
     all_labels = set(labels + labels_old + [0, 255])
 
-    if overlap:
-        fil = lambda c: any(x in labels for x in c)
-    else:
-        fil = lambda c: any(x in labels for x in c) and all(x in all_labels for x in c)
+    filter_fn = filter_with_overlap if overlap else filter_without_overlap
 
     for i, (_, mask) in tqdm(enumerate(dataset)):
-        category = np.unique(np.array(mask))
-        if fil(category):
+        unique_labels = np.unique(np.array(mask))
+        if filter_fn(unique_labels, labels, all_labels):
             idxs.append(i)
     print(f"Subset length: {len(idxs)}/{len(dataset)}")
     return idxs

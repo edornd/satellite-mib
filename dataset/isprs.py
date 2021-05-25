@@ -29,10 +29,12 @@ class ISPRSDataset(DatasetBase):
                  city: str = "potsdam",
                  subset: str = "train",
                  channels: str = "rgb",
+                 channel_count: int = 3,
                  include_dsm: bool = False,
                  transform: Callable = None) -> None:
         super().__init__()
         self.channels = channels
+        self.channel_count = channel_count
         self.include_dsm = include_dsm
         self.transform = transform
         path = os.path.join(path, city, subset)
@@ -76,7 +78,7 @@ class ISPRSDataset(DatasetBase):
         image = tif.imread(self.image_files[index]).astype(np.float32)
         mask = tif.imread(self.label_files[index]).astype(np.uint8)
         mask[mask == 5] = 0
-        image = image[:,:,:3] # please update if more channels are required
+        image = image[:,:,:self.channel_count]
         # add Digital surface map as extra channel to the image
         if self.include_dsm:
             dsm = tif.imread(self.dsm_files[index]).astype(np.float32)
@@ -94,22 +96,24 @@ class ISPRSDataset(DatasetBase):
 
 class PotsdamDataset(ISPRSDataset):
 
-    def __init__(self, path: Path, subset: str, include_dsm: bool = False, transform: Callable = None) -> None:
+    def __init__(self, path: Path, subset: str, include_dsm: bool = False, transform: Callable = None, channels: int = 3) -> None:
         super().__init__(path,
                          city="potsdam",
                          subset=subset,
                          channels="rgbir",
+                         channel_count=channels,
                          include_dsm=include_dsm,
                          transform=transform)
 
 
 class VaihingenDataset(ISPRSDataset):
 
-    def __init__(self, path: Path, subset: str, include_dsm: bool = False, transform: Callable = None) -> None:
+    def __init__(self, path: Path, subset: str, include_dsm: bool = False, transform: Callable = None, channels: int = 3) -> None:
         super().__init__(path,
                          city="vaihingen",
                          subset=subset,
                          channels="rgb",
+                         channel_count=channels,
                          include_dsm=include_dsm,
                          transform=transform)
 
@@ -127,13 +131,13 @@ class ISPRSDatasetIncremental(DatasetBase):
                  labels_old: List[int] = None,
                  idxs_path: str = None,
                  masking: bool = True,
-                 overlap: bool = True):
-        #! probably valid is more appropriate?
+                 overlap: bool = True,
+                 channels: int = 3):
         subset = "train" if train else "test"
         if city == "potsdam":
-            full_set = PotsdamDataset(path=root, subset=subset, transform=None)
+            full_set = PotsdamDataset(path=root, subset=subset, transform=None, channels=channels)
         else:
-            full_set = VaihingenDataset(path=root, subset=subset, transform=None)
+            full_set = VaihingenDataset(path=root, subset=subset, transform=None, channels=channels)
         self.labels = []
         self.labels_old = []
         # if we have labels, then we expect an ICL setup
@@ -148,7 +152,6 @@ class ISPRSDatasetIncremental(DatasetBase):
             #? not clear: void always first?
             self.labels = [0] + labels
             self.labels_old = [0] + labels_old
-
             self.order = [0] + labels_old + labels
 
             # take index of images with at least one class in labels and all classes in labels+labels_old+[0,255]
@@ -165,7 +168,6 @@ class ISPRSDatasetIncremental(DatasetBase):
                 masking_value = 255
 
             #? Again not super clear
-            self.inverted_order = {label: self.order.index(label) for label in self.order}
             self.inverted_order = {label: self.order.index(label) for label in self.order}
             self.inverted_order[255] = masking_value
 
@@ -199,7 +201,7 @@ class ISPRSDatasetIncremental(DatasetBase):
 class PotsdamIncremental(ISPRSDatasetIncremental):
 
     def __init__(self, root: str, train: bool, transform: Callable, labels: List[int], labels_old: List[int],
-                 idxs_path: str, masking: bool, overlap: bool):
+                 idxs_path: str, masking: bool, overlap: bool, channels: int = 3):
         super().__init__(root,
                          city="potsdam",
                          train=train,
@@ -208,13 +210,14 @@ class PotsdamIncremental(ISPRSDatasetIncremental):
                          labels_old=labels_old,
                          idxs_path=idxs_path,
                          masking=masking,
-                         overlap=overlap)
+                         overlap=overlap,
+                         channels=channels)
 
 
 class VaihingenIncremental(ISPRSDatasetIncremental):
 
     def __init__(self, root: str, train: bool, transform: Callable, labels: List[int], labels_old: List[int],
-                 idxs_path: str, masking: bool, overlap: bool):
+                 idxs_path: str, masking: bool, overlap: bool, channels: int = 3):
         super().__init__(root,
                          city="vaihingen",
                          train=train,
@@ -223,4 +226,5 @@ class VaihingenIncremental(ISPRSDatasetIncremental):
                          labels_old=labels_old,
                          idxs_path=idxs_path,
                          masking=masking,
-                         overlap=overlap)
+                         overlap=overlap,
+                         channels=channels)

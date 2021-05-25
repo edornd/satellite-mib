@@ -43,7 +43,14 @@ def get_augmentations(opts: Namespace):
         # internal not to import for nothing
         import albumentations as alb
         from albumentations.pytorch.transforms import ToTensorV2
-
+        
+        imagenet_mean = [0.485, 0.456, 0.406]
+        imagenet_std = [0.229, 0.224, 0.225]
+        # add additional IR normalization copying red
+        if opts.input_channels == 4:
+            imagenet_mean += [0.485]
+            imagenet_std += [0.229]
+        
         train_transform = alb.Compose([
             alb.Flip(),
             alb.ShiftScaleRotate(
@@ -53,14 +60,14 @@ def get_augmentations(opts: Namespace):
                 border_mode=4,
                 interpolation=1
             ),
-            alb.Normalize(mean=[0.485, 0.456, 0.406],
-                            std=[0.229, 0.224, 0.225],
+            alb.Normalize(mean=imagenet_mean,
+                            std=imagenet_std,
                             max_pixel_value=1.0), # already in range 0-1
             ToTensorV2()
         ])
         val_transform = alb.Compose([
-            alb.Normalize(mean=[0.485, 0.456, 0.406],
-                            std=[0.229, 0.224, 0.225],
+            alb.Normalize(mean=imagenet_mean,
+                            std=imagenet_std,
                             max_pixel_value=1.0),
             ToTensorV2()
         ])
@@ -119,7 +126,7 @@ def get_dataset(opts):
     train_dst = dataset(root=opts.data_root, train=True, transform=train_transform,
                         labels=list(labels), labels_old=list(labels_old),
                         idxs_path=path_base + f"/train-{opts.step}.npy",
-                        masking=not opts.no_mask, overlap=opts.overlap)
+                        masking=not opts.no_mask, overlap=opts.overlap, channels=opts.input_channels)
 
     if not opts.no_cross_val:  # if opts.cross_val:
         train_len = int(0.8 * len(train_dst))
@@ -129,13 +136,13 @@ def get_dataset(opts):
         val_dst = dataset(root=opts.data_root, train=False, transform=val_transform,
                           labels=list(labels), labels_old=list(labels_old),
                           idxs_path=path_base + f"/val-{opts.step}.npy",
-                          masking=not opts.no_mask, overlap=True)
+                          masking=not opts.no_mask, overlap=True, channels=opts.input_channels)
 
     image_set = 'train' if opts.val_on_trainset else 'val'
     test_dst = dataset(root=opts.data_root, train=opts.val_on_trainset, transform=val_transform,
                        labels=list(labels_cum), labels_old=None,
                        idxs_path=path_base + f"/test_on_{image_set}-{opts.step}.npy",
-                       masking=True, overlap=True)
+                       masking=True, overlap=True, channels=opts.input_channels)
 
     #? no test set used, only validation?
     return train_dst, val_dst, test_dst, len(labels_cum)

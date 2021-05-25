@@ -4,7 +4,7 @@ import torch.nn as nn
 from apex import amp
 from functools import reduce
 
-from utils.loss import KnowledgeDistillationLoss, BCEWithLogitsLossWithIgnoreIndex, \
+from utils.loss import FocalLoss, KnowledgeDistillationLoss, BCEWithLogitsLossWithIgnoreIndex, UnbiasedFocalLoss, \
     UnbiasedKnowledgeDistillationLoss, UnbiasedCrossEntropy, IcarlLoss
 from utils import get_regularizer
 
@@ -30,9 +30,15 @@ class Trainer:
         if self.bce:
             self.criterion = BCEWithLogitsLossWithIgnoreIndex(reduction=reduction)
         elif opts.unce and self.old_classes != 0:
-            self.criterion = UnbiasedCrossEntropy(old_cl=self.old_classes, ignore_index=255, reduction=reduction)
+            if opts.focal:
+                self.criterion = UnbiasedFocalLoss(old_cl=self.old_classes, ignore_index=255, reduction=reduction)
+            else:
+                self.criterion = UnbiasedCrossEntropy(old_cl=self.old_classes, ignore_index=255, reduction=reduction)
         else:
-            self.criterion = nn.CrossEntropyLoss(ignore_index=255, reduction=reduction)
+            if opts.focal:
+                self.criterion = FocalLoss(ignore_index=255)
+            else:
+                self.criterion = nn.CrossEntropyLoss(ignore_index=255, reduction=reduction)
 
         # ILTSS
         self.lde = opts.loss_de

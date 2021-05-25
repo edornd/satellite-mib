@@ -126,17 +126,18 @@ def get_argparser():
 
     # Model Options
     parser.add_argument("--backbone", type=str, default='resnet101',
-                        choices=['resnet50', 'resnet101'], help='backbone for the body (def: resnet50)')
+                        choices=['resnet50', 'resnet101', 'xception'], help='backbone for the body (def: resnet50)')
     parser.add_argument("--output_stride", type=int, default=16,
                         choices=[8, 16], help='stride for the backbone (def: 16)')
     parser.add_argument("--no_pretrained", action='store_true', default=False,
                         help='Wheather to use pretrained or not (def: True)')
-    parser.add_argument("--norm_act", type=str, default="iabn_sync",
+    parser.add_argument("--norm_act", type=str, default="std",
                         choices=['iabn_sync', 'iabn', 'abn', 'std'], help='Which BN to use (def: abn_sync')
     parser.add_argument("--fusion-mode", metavar="NAME", type=str, choices=["mean", "voting", "max"], default="mean",
                         help="How to fuse the outputs. Options: 'mean', 'voting', 'max'")
     parser.add_argument("--pooling", type=int, default=32,
                         help='pooling in ASPP for the validation phase (def: 32)')
+    parser.add_argument("--head", type=str, default="v3", choices=["v3", "v3plus"], help="Which decoder to apply")
 
     # Test and Checkpoint options
     parser.add_argument("--test",  action='store_true', default=False,
@@ -185,6 +186,7 @@ def get_argparser():
                         help="The parameter to hard-ify the soft-labels. Def is 1.")
     parser.add_argument("--unce", default=False, action='store_true',
                         help="Enable Unbiased Cross Entropy instead of CrossEntropy")
+    parser.add_argument("--focal", default=True, action="store_true", help="Enable focal loss instead of basic CE")
 
     # Incremental parameters
     parser.add_argument("--task", type=str, default="19-1", choices=tasks.get_task_list(),

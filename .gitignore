@@ -3,10 +3,12 @@ env/
 
 # stuff you don't really want around
 apex/
+inplace_abn/
 checkpoints/
 pretrained/
 data/
 logs/
+*.sh
 
 # IDE
 .vscode/
