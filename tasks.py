@@ -129,16 +129,13 @@ tasks_ade = {
          }
 }
 tasks_isprs = {
-    "offline":{
-        0: [0, 1, 2, 3, 4, 5],
-    },
-    "4-1": { # doesn't work: no images in the overlapped case
-         0: [0, 1, 2, 3, 4],
-        1: [5],
+    "6-0":{
+        0: [0, 1, 2, 3, 4, 5]
+        # 0: [0, 1, 2, 3, 4, 5, 6],
     },
     "4-1b": {
-         0: [0, 1, 3, 4, 5], # surface, building, tree, car, clutter
-        1: [2], # low vegetation
+         0: [0, 1, 2, 4, 5, 6], # surface, building, tree, car, clutter
+        1: [3], # low vegetation
     },
     "2-3": {
          0: [0, 4, 5], # car, clutter
@@ -147,6 +144,11 @@ tasks_isprs = {
     "3-2": {
         0: [0, 2, 4, 5], # building car clutter
         1: [1, 2], # vegegation, tree
+    },
+    "2-2-2": {
+        0: [0, 2, 4],
+        1: [1, 3],
+        2: [5, 6]  
     },
     "1-4s": {
         0: [0, 5], # clutter

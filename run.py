@@ -44,12 +44,18 @@ def get_augmentations(opts: Namespace):
         import albumentations as alb
         from albumentations.pytorch.transforms import ToTensorV2
         
-        imagenet_mean = [0.485, 0.456, 0.406]
-        imagenet_std = [0.229, 0.224, 0.225]
-        # add additional IR normalization copying red
-        if opts.input_channels == 4:
-            imagenet_mean += [0.485]
-            imagenet_std += [0.229]
+        if opts.no_pretrained:
+            means = [0.332, 0.361, 0.335, 0.383]
+            stds = [0.143, 0.140, 0.145, 0.143]
+        else:
+            means = [0.485, 0.456, 0.406, 0.485]
+            stds = [0.229, 0.224, 0.225, 0.229]
+        # slice the vectors depending on whether we require IR or not
+        means = means[:opts.input_channels]
+        stds = stds[:opts.input_channels]
+        if opts.include_dsm:
+            means += [0.179]
+            stds += [0.216]
         
         train_transform = alb.Compose([
             alb.Flip(),
@@ -60,14 +66,14 @@ def get_augmentations(opts: Namespace):
                 border_mode=4,
                 interpolation=1
             ),
-            alb.Normalize(mean=imagenet_mean,
-                            std=imagenet_std,
+            alb.Normalize(mean=means,
+                            std=stds,
                             max_pixel_value=1.0), # already in range 0-1
             ToTensorV2()
         ])
         val_transform = alb.Compose([
-            alb.Normalize(mean=imagenet_mean,
-                            std=imagenet_std,
+            alb.Normalize(mean=means,
+                            std=stds,
                             max_pixel_value=1.0),
             ToTensorV2()
         ])
@@ -104,6 +110,8 @@ def get_dataset(opts):
 
     labels, labels_old, path_base = tasks.get_task_labels(opts.dataset, opts.task, opts.step)
     labels_cum = labels_old + labels
+    
+    optional_args = dict()
 
     if opts.dataset == 'voc':
         dataset = VOCSegmentationIncremental
@@ -112,8 +120,12 @@ def get_dataset(opts):
     #! insert my dataset
     elif opts.dataset == "potsdam":
         dataset = PotsdamIncremental
+        optional_args["channels"] = opts.input_channels
+        optional_args["include_dsm"] = opts.include_dsm
     elif opts.dataset == "vaihingen":
         dataset = VaihingenIncremental
+        optional_args["channels"] = opts.input_channels
+        optional_args["include_dsm"] = opts.include_dsm
     else:
         raise NotImplementedError
 
@@ -126,7 +138,7 @@ def get_dataset(opts):
     train_dst = dataset(root=opts.data_root, train=True, transform=train_transform,
                         labels=list(labels), labels_old=list(labels_old),
                         idxs_path=path_base + f"/train-{opts.step}.npy",
-                        masking=not opts.no_mask, overlap=opts.overlap, channels=opts.input_channels)
+                        masking=not opts.no_mask, overlap=opts.overlap, **optional_args)
 
     if not opts.no_cross_val:  # if opts.cross_val:
         train_len = int(0.8 * len(train_dst))
@@ -136,13 +148,13 @@ def get_dataset(opts):
         val_dst = dataset(root=opts.data_root, train=False, transform=val_transform,
                           labels=list(labels), labels_old=list(labels_old),
                           idxs_path=path_base + f"/val-{opts.step}.npy",
-                          masking=not opts.no_mask, overlap=True, channels=opts.input_channels)
+                          masking=not opts.no_mask, overlap=True, **optional_args)
 
     image_set = 'train' if opts.val_on_trainset else 'val'
     test_dst = dataset(root=opts.data_root, train=opts.val_on_trainset, transform=val_transform,
                        labels=list(labels_cum), labels_old=None,
                        idxs_path=path_base + f"/test_on_{image_set}-{opts.step}.npy",
-                       masking=True, overlap=True, channels=opts.input_channels)
+                       masking=True, overlap=True, **optional_args)
 
     #? no test set used, only validation?
     return train_dst, val_dst, test_dst, len(labels_cum)

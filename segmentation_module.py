@@ -35,11 +35,12 @@ def make_model(opts, classes=None):
 
     variant: DeepLabVariants = None
     pretrained = not opts.no_pretrained
+    input_channels = opts.input_channels + int(opts.include_dsm)
     # ResNet backbones
     if opts.backbone and opts.backbone.startswith("resnet"):
         variant = model_variations.get(opts.backbone).get(opts.output_stride, 16)
         backbone_variant, output_strides, _ = variant.value
-        body = rn.ResNetBackbone(in_channels=opts.input_channels,
+        body = rn.ResNetBackbone(in_channels=input_channels,
                                  variant=backbone_variant,
                                  output_strides=output_strides,
                                  batch_norm=norm,
@@ -48,7 +49,7 @@ def make_model(opts, classes=None):
     elif opts.backbone and opts.backbone.startswith("xception"):
         variant = model_variations.get(opts.backbone).get(opts.output_stride, 16)
         backbone_variant, output_strides, _ = variant.value
-        body = xc.XceptionBackbone(in_channels=opts.input_channels,
+        body = xc.XceptionBackbone(in_channels=input_channels,
                                    output_strides=output_strides,
                                    variant=backbone_variant,
                                    batch_norm=norm,

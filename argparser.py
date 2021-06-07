@@ -203,5 +203,7 @@ def get_argparser():
 
     parser.add_argument("--input_channels", type=int, choices=[3, 4], default=3,
                         help="How many input channels for the backbone")
+    parser.add_argument("--include_dsm", action='store_true', default=False,
+                        help="Whether to include the Digital Surface Map (Vaihingen, Potsdam)")
 
     return parser

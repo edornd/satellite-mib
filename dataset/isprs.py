@@ -12,13 +12,23 @@ import torchvision as tv
 
 from .utils import ISPRSSubset, filter_images
 
+# classes = {
+#     0: "background",
+#     1: "surface",
+#     2: "building",
+#     3: "low_vegetation",
+#     4: "tree",
+#     5: "car",
+#     6: "clutter",
+# }
+
 classes = {
-    0: "surface",
+    0: "impervious_surfaces",
     1: "building",
     2: "low_vegetation",
     3: "tree",
     4: "car",
-    5: "clutter",
+    5: "clutter"
 }
 
 
@@ -77,7 +87,9 @@ class ISPRSDataset(DatasetBase):
         """
         image = tif.imread(self.image_files[index]).astype(np.float32)
         mask = tif.imread(self.label_files[index]).astype(np.uint8)
-        mask[mask == 5] = 0
+        # since there is no actual background, we increment by 1 every index (they are 0-indexed)
+        #! Remember to remove this line for other tests
+        mask[mask < 255] += 1
         image = image[:,:,:self.channel_count]
         # add Digital surface map as extra channel to the image
         if self.include_dsm:
@@ -132,12 +144,13 @@ class ISPRSDatasetIncremental(DatasetBase):
                  idxs_path: str = None,
                  masking: bool = True,
                  overlap: bool = True,
-                 channels: int = 3):
+                 channels: int = 3,
+                 include_dsm: bool = False):
         subset = "train" if train else "test"
         if city == "potsdam":
-            full_set = PotsdamDataset(path=root, subset=subset, transform=None, channels=channels)
+            full_set = PotsdamDataset(path=root, subset=subset, transform=None, channels=channels, include_dsm=include_dsm)
         else:
-            full_set = VaihingenDataset(path=root, subset=subset, transform=None, channels=channels)
+            full_set = VaihingenDataset(path=root, subset=subset, transform=None, channels=channels, include_dsm=include_dsm)
         self.labels = []
         self.labels_old = []
         # if we have labels, then we expect an ICL setup
@@ -201,7 +214,7 @@ class ISPRSDatasetIncremental(DatasetBase):
 class PotsdamIncremental(ISPRSDatasetIncremental):
 
     def __init__(self, root: str, train: bool, transform: Callable, labels: List[int], labels_old: List[int],
-                 idxs_path: str, masking: bool, overlap: bool, channels: int = 3):
+                 idxs_path: str, masking: bool, overlap: bool, channels: int = 3, include_dsm: bool = True):
         super().__init__(root,
                          city="potsdam",
                          train=train,
@@ -211,13 +224,14 @@ class PotsdamIncremental(ISPRSDatasetIncremental):
                          idxs_path=idxs_path,
                          masking=masking,
                          overlap=overlap,
-                         channels=channels)
+                         channels=channels,
+                         include_dsm=include_dsm)
 
 
 class VaihingenIncremental(ISPRSDatasetIncremental):
 
     def __init__(self, root: str, train: bool, transform: Callable, labels: List[int], labels_old: List[int],
-                 idxs_path: str, masking: bool, overlap: bool, channels: int = 3):
+                 idxs_path: str, masking: bool, overlap: bool, channels: int = 3, include_dsm: bool = False):
         super().__init__(root,
                          city="vaihingen",
                          train=train,
@@ -227,4 +241,5 @@ class VaihingenIncremental(ISPRSDatasetIncremental):
                          idxs_path=idxs_path,
                          masking=masking,
                          overlap=overlap,
-                         channels=channels)
+                         channels=channels,
+                         include_dsm=include_dsm)

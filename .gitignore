@@ -1,5 +1,6 @@
 **/__pycache__
 env/
+**/*.env
 
 # stuff you don't really want around
 apex/
