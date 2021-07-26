@@ -7,9 +7,11 @@ from functools import reduce
 from utils.loss import FocalLoss, KnowledgeDistillationLoss, BCEWithLogitsLossWithIgnoreIndex, UnbiasedFocalLoss, \
     UnbiasedKnowledgeDistillationLoss, UnbiasedCrossEntropy, IcarlLoss
 from utils import get_regularizer
+from tqdm import tqdm
 
 
 class Trainer:
+
     def __init__(self, model, model_old, device, opts, trainer_state=None, classes=None):
 
         self.model_old = model_old
@@ -90,6 +92,7 @@ class Trainer:
         l_reg = torch.tensor(0.)
 
         train_loader.sampler.set_epoch(cur_epoch)
+        pbar = tqdm(total=len(train_loader))
 
         model.train()
         for cur_step, (images, labels) in enumerate(train_loader):
@@ -106,11 +109,11 @@ class Trainer:
 
             # xxx BCE / Cross Entropy Loss
             if not self.icarl_only_dist:
-                loss = criterion(outputs, labels)  # B x H x W
+                loss = criterion(outputs, labels)    # B x H x W
             else:
                 loss = self.licarl(outputs, labels, torch.sigmoid(outputs_old))
 
-            loss = loss.mean()  # scalar
+            loss = loss.mean()    # scalar
 
             if self.icarl_combined:
                 # tensor.narrow( dim, start, end) -> slice tensor from start to end in the specified dim
@@ -154,8 +157,17 @@ class Trainer:
 
             if (cur_step + 1) % print_int == 0:
                 interval_loss = interval_loss / print_int
-                logger.info(f"Epoch {cur_epoch}, Batch {cur_step + 1}/{len(train_loader)},"
-                            f" Loss={interval_loss}")
+                losses = {
+                    "total": interval_loss,
+                    "CE": loss.item(),
+                    "KD": lkd.item(),
+                    "DE": lde.item(),
+                    "Reg": l_reg.item()
+                }
+                if distributed.get_rank() == 0:
+                    pbar.update(distributed.get_world_size())
+                    pbar.set_postfix(losses)
+                logger.debug(f"Epoch {cur_epoch}, Batch {cur_step + 1}/{len(train_loader)}," f" Loss={interval_loss}")
                 logger.debug(f"Loss made of: CE {loss}, LKD {lkd}, LDE {lde}, LReg {l_reg}")
                 # visualization
                 if logger is not None:
@@ -208,11 +220,11 @@ class Trainer:
 
                 # xxx BCE / Cross Entropy Loss
                 if not self.icarl_only_dist:
-                    loss = criterion(outputs, labels)  # B x H x W
+                    loss = criterion(outputs, labels)    # B x H x W
                 else:
                     loss = self.licarl(outputs, labels, torch.sigmoid(outputs_old))
 
-                loss = loss.mean()  # scalar
+                loss = loss.mean()    # scalar
 
                 if self.icarl_combined:
                     # tensor.narrow( dim, start, end) -> slice tensor from start to end in the specified dim
@@ -242,10 +254,8 @@ class Trainer:
                 prediction = prediction.cpu().numpy()
                 metrics.update(labels, prediction)
 
-                if ret_samples_ids is not None and i in ret_samples_ids:  # get samples
-                    ret_samples.append((images[0].detach().cpu().numpy(),
-                                        labels[0],
-                                        prediction[0]))
+                if ret_samples_ids is not None and i in ret_samples_ids:    # get samples
+                    ret_samples.append((images[0].detach().cpu().numpy(), labels[0], prediction[0]))
 
             # collect statistics from multiple processes
             metrics.synch(device)

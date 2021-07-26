@@ -7,9 +7,8 @@ from functools import reduce
 
 from cvmodels.segmentation.backbones import resnet as rn
 from cvmodels.segmentation.backbones import xception as xc
-from cvmodels.segmentation.deeplab import  DeepLabVariants
+from cvmodels.segmentation.deeplab import DeepLabVariants
 from modules.deeplab import DeeplabV3Head, DeeplabV3PlusHead
-
 
 logger = logging.getLogger(__name__)
 model_variations = {
@@ -31,10 +30,9 @@ model_variations = {
 def make_model(opts, classes=None):
     if "abn" in opts.norm_act:
         logger.warning("In-place batch normalization not working!")
-    norm = nn.BatchNorm2d  # not synchronized, can be enabled with apex
+    norm = nn.BatchNorm2d    # not synchronized, can be enabled with apex
 
     variant: DeepLabVariants = None
-    pretrained = not opts.no_pretrained
     input_channels = opts.input_channels + int(opts.include_dsm)
     # ResNet backbones
     if opts.backbone and opts.backbone.startswith("resnet"):
@@ -44,7 +42,7 @@ def make_model(opts, classes=None):
                                  variant=backbone_variant,
                                  output_strides=output_strides,
                                  batch_norm=norm,
-                                 pretrained=pretrained)
+                                 pretrained=opts.pretrained)
     # Xception backbones
     elif opts.backbone and opts.backbone.startswith("xception"):
         variant = model_variations.get(opts.backbone).get(opts.output_stride, 16)
@@ -53,17 +51,14 @@ def make_model(opts, classes=None):
                                    output_strides=output_strides,
                                    variant=backbone_variant,
                                    batch_norm=norm,
-                                   pretrained=pretrained)
+                                   pretrained=opts.pretrained)
     else:
         raise ValueError(f"Unknown backbone '{opts.backbone}'")
 
     _, _, aspp_var = variant.value
     head_channels = 256
     if opts.head == "v3":
-        head = DeeplabV3Head(backbone=body,
-                            in_dimension=512,
-                            aspp_variant=aspp_var,
-                            batch_norm=norm)
+        head = DeeplabV3Head(backbone=body, in_dimension=512, aspp_variant=aspp_var, batch_norm=norm)
     elif opts.head == "v3plus":
         head = DeeplabV3PlusHead(backbone=body,
                                  in_dimension=512,
@@ -76,15 +71,13 @@ def make_model(opts, classes=None):
     if classes is not None:
         model = IncrementalSegmentationModule(body, head, head_channels, classes=classes, fusion_mode=opts.fusion_mode)
     else:
-        model = SegmentationModule(body, head, head_channels, opts.num_classes, opts.fusion_mode)
-
+        raise NotImplementedError("Null classes not supported")
     return model
 
 
 def flip(x, dim):
     indices = [slice(None)] * x.dim()
-    indices[dim] = torch.arange(x.size(dim) - 1, -1, -1,
-                                dtype=torch.long, device=x.device)
+    indices[dim] = torch.arange(x.size(dim) - 1, -1, -1, dtype=torch.long, device=x.device)
     return x[tuple(indices)]
 
 
@@ -97,9 +90,7 @@ class IncrementalSegmentationModule(nn.Module):
         # classes must be a list where [n_class_task[i] for i in tasks]
         assert isinstance(classes, list), \
             "Classes must be a list where to every index correspond the num of classes for that task"
-        self.cls = nn.ModuleList(
-            [nn.Conv2d(head_channels, c, 1) for c in classes]
-        )
+        self.cls = nn.ModuleList([nn.Conv2d(head_channels, c, 1) for c in classes])
         self.classes = classes
         self.head_channels = head_channels
         self.tot_classes = reduce(lambda a, b: a + b, self.classes)
@@ -113,7 +104,7 @@ class IncrementalSegmentationModule(nn.Module):
             out.append(mod(x_pl))
         x_o = torch.cat(out, dim=1)
         if ret_intermediate:
-            return x_o, x_b,  x_pl
+            return x_o, x_b, x_pl
         return x_o
 
     def init_new_classifier(self, device):
