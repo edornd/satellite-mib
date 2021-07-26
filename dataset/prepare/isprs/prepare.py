@@ -1,17 +1,16 @@
-from os.path import join, exists
+from os.path import exists, join
 from pathlib import Path
 from typing import Callable, Dict, List, Optional, Tuple
-from tqdm import tqdm
-import torch
+
 import numpy as np
 import tifffile as tif
+import torch
 import typer as tpr
-from PIL import Image
-
 from dataset.prepare import DatasetSplits
+from dataset.prepare.isprs.config import (ISPRSChannels, ISPRSDatasetInfo, ISPRSDatasets, PotsdamInfo, VaihingenInfo)
 from dataset.prepare.utils import makedirs, tile_overlapped
-from dataset.prepare.isprs.config import ISPRSDatasetInfo, ISPRSDatasets, ISPRSChannels, PotsdamInfo, VaihingenInfo
-
+from PIL import Image
+from tqdm import tqdm
 
 # keep tiles until we go over 75% of missing data
 VALID_PERCENT_THRESHOLD = 0.75
@@ -57,7 +56,8 @@ def prefix_vaihingen(area_id: int) -> str:
     return f"area{area_id}"
 
 
-def filenames_potsdam(area_id: Tuple[int, int], channels: ISPRSChannels,
+def filenames_potsdam(area_id: Tuple[int, int],
+                      channels: ISPRSChannels,
                       with_boundaries: bool = True) -> Tuple[str, str, str]:
     """Generates the filenames for the image, label and DSM files in the potsdam dataset.
 
@@ -78,8 +78,7 @@ def filenames_potsdam(area_id: Tuple[int, int], channels: ISPRSChannels,
     return image_filename, label_filename, dsurf_filename
 
 
-def filenames_vaihingen(area_id: int, channels: ISPRSChannels,
-                        with_boundaries: bool = True) -> Tuple[str, str, str]:
+def filenames_vaihingen(area_id: int, channels: ISPRSChannels, with_boundaries: bool = True) -> Tuple[str, str, str]:
     """Generates the filesnames for the image, label and DSM files in the Vaihingen dataset.
 
     :param area_id: ID of the main tile
@@ -98,18 +97,9 @@ def filenames_vaihingen(area_id: int, channels: ISPRSChannels,
     return image_filename, label_filename, dsurf_filename
 
 
-def prepare(config: ISPRSDatasetInfo,
-            subset: DatasetSplits,
-            naming_fn: Callable,
-            prefix_fn: Callable,
-            source_root: Path,
-            destination_root: Path,
-            channels: ISPRSChannels,
-            target_size: int,
-            overlap: int,
-            exclude_index: int,
-            with_boundaries: bool,
-            normalize: bool) -> None:
+def prepare(config: ISPRSDatasetInfo, subset: DatasetSplits, naming_fn: Callable, prefix_fn: Callable,
+            source_root: Path, destination_root: Path, channels: ISPRSChannels, target_size: int, overlap: int,
+            exclude_index: int, with_boundaries: bool, normalize: bool) -> None:
     """Iterates over one of the two main datasets (Vaihingen or Potsdam) and over one of the three main splits
     (train, validation ,test), generating tiles with fixed size [target_size x target_size], ready to be provided
     as input to a segmentation model.
@@ -218,12 +208,8 @@ def init_tensors(channel_count: int):
     return channel_maxs, channel_mins, channel_mean, channel_stds
 
 
-def statistics(config: ISPRSDatasetInfo,
-               naming_fn: Callable,
-               prefix_fn: Callable,
-               source: Path,
-               channels: ISPRSChannels,
-               with_boundaries: bool) -> None:
+def statistics(config: ISPRSDatasetInfo, naming_fn: Callable, prefix_fn: Callable, source: Path,
+               channels: ISPRSChannels, with_boundaries: bool) -> None:
     """Computes the statistics on the current dataset.
 
     Args:
@@ -279,8 +265,8 @@ def statistics(config: ISPRSDatasetInfo,
         dsm_channels = dsm.shape[-1]
         image = image.reshape((-1, img_channels))
         dsm = dsm.reshape((-1, dsm_channels))
-        image_std = ((image - ch_avg[:img_channels]) ** 2).sum(axis=0) / float(image.shape[0])
-        dsm_std = ((dsm - ch_avg[img_channels:]) ** 2).sum(axis=0) / float(image.shape[0])
+        image_std = ((image - ch_avg[:img_channels])**2).sum(axis=0) / float(image.shape[0])
+        dsm_std = ((dsm - ch_avg[img_channels:])**2).sum(axis=0) / float(image.shape[0])
         ch_std += np.concatenate((image_std, dsm_std), axis=-1)
     ch_std = np.sqrt(ch_std / len(config.tiles))
     # print stats
@@ -304,7 +290,7 @@ def main(dataset: ISPRSDatasets = tpr.Argument(..., help="ISPRS dataset to be pr
          overlap: int = tpr.Option(64, help="How many pixels should be overlapped between strides"),
          exclude_index: int = tpr.Option(0, help="Value to be placed on pixels outside boundaries (to be exluded)"),
          use_boundary: bool = tpr.Option(True, help="Whether to use labels with or without boundaries"),
-         normalize: bool = tpr.Option(True, help="Whether to normalize image channels using min-max"),
+         normalize: bool = tpr.Option(False, help="Whether to normalize image channels using min-max"),
          stats: bool = tpr.Option(False, help="Just compute some dataset statistics (mean, var)")):
 
     if dataset == ISPRSDatasets.potsdam:
@@ -325,8 +311,8 @@ def main(dataset: ISPRSDatasets = tpr.Argument(..., help="ISPRS dataset to be pr
             sets = [v for v in DatasetSplits]
         for subset in sets:
             tpr.echo(f"Processing {dataset.value}'s {subset.value} set...")
-            prepare(config, subset, naming_function, prefix_function, source, destination, channels,
-                    target_size, overlap, exclude_index, use_boundary, normalize)
+            prepare(config, subset, naming_function, prefix_function, source, destination, channels, target_size,
+                    overlap, exclude_index, use_boundary, normalize)
 
 
 if __name__ == "__main__":

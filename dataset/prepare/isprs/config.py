@@ -1,4 +1,5 @@
 from enum import Enum
+
 from dataset.prepare import DatasetInfo, DatasetSplits
 
 
@@ -14,12 +15,12 @@ class ISPRSChannels(str, Enum):
 
 
 ISPRSColorPalette = {
-    0: (255, 0, 0),
-    1: (255, 255, 255),
-    2: (0, 0, 255),
-    3: (0, 255, 255),
-    4: (0, 255, 0),
-    5: (255, 255, 0),
+    0: (255, 255, 255),
+    1: (0, 0, 255),
+    2: (0, 255, 255),
+    3: (0, 255, 0),
+    4: (255, 255, 0),
+    5: (255, 0, 0),
     255: (0, 0, 0)
 }
 
@@ -34,7 +35,8 @@ class ISPRSDatasetInfo(DatasetInfo):
             2: "low_vegetation",
             3: "tree",
             4: "car",
-            5: "clutter"
+            5: "clutter",
+            255: "ignored"
         }
         self.index2color: dict = ISPRSColorPalette
         self.label2index: dict = {v: k for k, v in self.index2label.items()}

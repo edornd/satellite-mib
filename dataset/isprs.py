@@ -1,14 +1,13 @@
-import os
 import glob
+import os
 from pathlib import Path
 from typing import Callable, List, Tuple
 
 import numpy as np
 import tifffile as tif
-from torch import Tensor
-from torch import distributed
-from torch.utils.data import Dataset as DatasetBase
 import torchvision as tv
+from torch import Tensor, distributed
+from torch.utils.data import Dataset as DatasetBase
 
 from .utils import ISPRSSubset, filter_images
 
@@ -22,14 +21,7 @@ from .utils import ISPRSSubset, filter_images
 #     6: "clutter",
 # }
 
-classes = {
-    0: "impervious_surfaces",
-    1: "building",
-    2: "low_vegetation",
-    3: "tree",
-    4: "car",
-    5: "clutter"
-}
+classes = {0: "impervious_surfaces", 1: "building", 2: "low_vegetation", 3: "tree", 4: "car", 5: "clutter"}
 
 
 class ISPRSDataset(DatasetBase):
@@ -85,12 +77,12 @@ class ISPRSDataset(DatasetBase):
         :return:        image, mask tuple
         :rtype: Tuple[torch.Tensor, torch.Tensor]
         """
-        image = tif.imread(self.image_files[index]).astype(np.float32)
+        image = tif.imread(self.image_files[index]).astype(np.uint8)
         mask = tif.imread(self.label_files[index]).astype(np.uint8)
         # since there is no actual background, we increment by 1 every index (they are 0-indexed)
-        #! Remember to remove this line for other tests
+        # ! Remember to remove this line for other tests
         mask[mask < 255] += 1
-        image = image[:,:,:self.channel_count]
+        image = image[:, :, :self.channel_count]
         # add Digital surface map as extra channel to the image
         if self.include_dsm:
             dsm = tif.imread(self.dsm_files[index]).astype(np.float32)
@@ -108,7 +100,12 @@ class ISPRSDataset(DatasetBase):
 
 class PotsdamDataset(ISPRSDataset):
 
-    def __init__(self, path: Path, subset: str, include_dsm: bool = False, transform: Callable = None, channels: int = 3) -> None:
+    def __init__(self,
+                 path: Path,
+                 subset: str,
+                 include_dsm: bool = False,
+                 transform: Callable = None,
+                 channels: int = 3) -> None:
         super().__init__(path,
                          city="potsdam",
                          subset=subset,
@@ -120,7 +117,12 @@ class PotsdamDataset(ISPRSDataset):
 
 class VaihingenDataset(ISPRSDataset):
 
-    def __init__(self, path: Path, subset: str, include_dsm: bool = False, transform: Callable = None, channels: int = 3) -> None:
+    def __init__(self,
+                 path: Path,
+                 subset: str,
+                 include_dsm: bool = False,
+                 transform: Callable = None,
+                 channels: int = 3) -> None:
         super().__init__(path,
                          city="vaihingen",
                          subset=subset,
@@ -148,9 +150,17 @@ class ISPRSDatasetIncremental(DatasetBase):
                  include_dsm: bool = False):
         subset = "train" if train else "test"
         if city == "potsdam":
-            full_set = PotsdamDataset(path=root, subset=subset, transform=None, channels=channels, include_dsm=include_dsm)
+            full_set = PotsdamDataset(path=root,
+                                      subset=subset,
+                                      transform=None,
+                                      channels=channels,
+                                      include_dsm=include_dsm)
         else:
-            full_set = VaihingenDataset(path=root, subset=subset, transform=None, channels=channels, include_dsm=include_dsm)
+            full_set = VaihingenDataset(path=root,
+                                        subset=subset,
+                                        transform=None,
+                                        channels=channels,
+                                        include_dsm=include_dsm)
         self.labels = []
         self.labels_old = []
         # if we have labels, then we expect an ICL setup
@@ -160,9 +170,9 @@ class ISPRSDatasetIncremental(DatasetBase):
             self.__strip_zero(labels)
             self.__strip_zero(labels_old)
 
-            assert not any(l in labels_old for l in labels), "labels and labels_old must be disjoint sets"
+            assert not any(lab in labels_old for lab in labels), "labels and labels_old must be disjoint sets"
 
-            #? not clear: void always first?
+            # ? not clear: void always first?
             self.labels = [0] + labels
             self.labels_old = [0] + labels_old
             self.order = [0] + labels_old + labels
@@ -175,12 +185,8 @@ class ISPRSDatasetIncremental(DatasetBase):
                 if idxs_path is not None and distributed.get_rank() == 0:
                     np.save(idxs_path, np.array(idxs, dtype=int))
 
-            if train:
-                masking_value = 0
-            else:
-                masking_value = 255
-
-            #? Again not super clear
+            masking_value = 0 if train else 255
+            # ? Again not super clear
             self.inverted_order = {label: self.order.index(label) for label in self.order}
             self.inverted_order[255] = masking_value
 
@@ -213,8 +219,17 @@ class ISPRSDatasetIncremental(DatasetBase):
 
 class PotsdamIncremental(ISPRSDatasetIncremental):
 
-    def __init__(self, root: str, train: bool, transform: Callable, labels: List[int], labels_old: List[int],
-                 idxs_path: str, masking: bool, overlap: bool, channels: int = 3, include_dsm: bool = True):
+    def __init__(self,
+                 root: str,
+                 train: bool,
+                 transform: Callable,
+                 labels: List[int],
+                 labels_old: List[int],
+                 idxs_path: str,
+                 masking: bool,
+                 overlap: bool,
+                 channels: int = 3,
+                 include_dsm: bool = True):
         super().__init__(root,
                          city="potsdam",
                          train=train,
@@ -230,8 +245,17 @@ class PotsdamIncremental(ISPRSDatasetIncremental):
 
 class VaihingenIncremental(ISPRSDatasetIncremental):
 
-    def __init__(self, root: str, train: bool, transform: Callable, labels: List[int], labels_old: List[int],
-                 idxs_path: str, masking: bool, overlap: bool, channels: int = 3, include_dsm: bool = False):
+    def __init__(self,
+                 root: str,
+                 train: bool,
+                 transform: Callable,
+                 labels: List[int],
+                 labels_old: List[int],
+                 idxs_path: str,
+                 masking: bool,
+                 overlap: bool,
+                 channels: int = 3,
+                 include_dsm: bool = False):
         super().__init__(root,
                          city="vaihingen",
                          train=train,
